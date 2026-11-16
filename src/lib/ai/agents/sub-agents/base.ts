@@ -51,13 +51,8 @@ const HIDDEN_STATUS_TOOLS = new Set([
 	"DELETE_KNOWLEDGE",
 ]);
 
-const hostFromUrl = (url: string) => {
-	try {
-		return new URL(url).hostname.replace(/^www\./, "");
-	} catch {
-		return "";
-	}
-};
+/** Search tools whose results are saved as the reply's sources. All return `{ success, results }`. */
+const SOURCE_RECORDING_TOOLS = new Set(["SEARCH_WEB", "SEARCH_BRAVE_NEWS", "SEARCH_IMAGES"]);
 
 const getToolStatusMessage = (functionName: string) => {
 	if (HIDDEN_STATUS_TOOLS.has(functionName)) return null;
@@ -203,7 +198,7 @@ export const createToolsFromFunctions = (
 					}
 					const result = await functionToCall(access.args as never, context);
 					if (
-						funcName === "SEARCH_WEB" &&
+						SOURCE_RECORDING_TOOLS.has(funcName) &&
 						hasExplicitSuccessFlag(result) &&
 						result.success &&
 						Array.isArray(result.results)
@@ -223,31 +218,6 @@ export const createToolsFromFunctions = (
 									publishDate: source.publishDate,
 								})),
 							diagnostics: result.diagnostics,
-						});
-					}
-					if (
-						(funcName === "SEARCH_BRAVE_NEWS" || funcName === "SEARCH_IMAGES") &&
-						Array.isArray(result)
-					) {
-						await context?.recordSearchSources?.({
-							query: typeof args.q === "string" ? args.q : "",
-							sources: result
-								.filter((source) => typeof source.url === "string")
-								.map((source) => ({
-									title: typeof source.title === "string" ? source.title : undefined,
-									url: source.url as string,
-									description:
-										typeof source.description === "string" ? source.description : undefined,
-									source: hostFromUrl(source.url as string),
-									sourceKind: funcName === "SEARCH_BRAVE_NEWS" ? "news" : "unknown",
-									provider: funcName === "SEARCH_BRAVE_NEWS" ? "brave_news" : "brave_images",
-									publishDate:
-										typeof source.age === "string"
-											? source.age
-											: typeof source.published_time === "string"
-												? source.published_time
-												: undefined,
-								})),
 						});
 					}
 					return result;

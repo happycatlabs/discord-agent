@@ -65,7 +65,7 @@ For a narrow change, run the focused tests first, then the full set.
 
 - It ignores bot authors. DMs (`!message.guild`) go through `handleDirectMessage()`.
 - **DMs:** fetch up to 25 recent messages, include attachment URLs, show typing and a status embed, call `chatFromDiscord()`, send the response, then save the sources it used.
-- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Admin status only unlocks server-management tools. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which decides `shouldReply`, `shouldReact` (plus `reaction`) and `directReply`.
+- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Admin status only unlocks server-management tools. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which returns one decision: `reply` (with `quoteMessage`), `react` (with `emoji`) or `ignore`. Chat content goes in the user turn, never the system prompt, so messages can't rewrite the instructions.
 - The ambient check only runs while the bot has spoken in that channel within `AMBIENT_WINDOW_SECONDS` (20 minutes). Approved replies go out immediately.
 - The bot's own ID is `AGENT_USER_ID`, which defaults to `CLIENT_ID`. At startup it logs an error if they don't match.
 
@@ -120,7 +120,7 @@ AI SDK gotchas:
 ## Search and sources
 
 - `SEARCH_WEB` uses `searchWebAcquisition()` in `src/lib/ai/acquisition.ts`. It combines Brave, Parallel, Jina search and the Jina reader, sorts sources by kind, caches results briefly, and records diagnostics. Each provider is used only if its key is set.
-- `SEARCH_BRAVE_NEWS` and `SEARCH_IMAGES` use the helpers in `src/lib/ai/brave.ts`.
+- `SEARCH_BRAVE_NEWS` and `SEARCH_IMAGES` wrap the helpers in `src/lib/ai/brave.ts` via `src/lib/ai/functions/search.ts`. All three search tools return `{ success, results }` with the same result fields.
 - `sub-agents/base.ts` records the sources these tools return. `messageCreate.ts` saves them with the response, and `chatFromDiscord()` answers later "what's your source?" questions from the saved sources instead of searching again.
 - Don't include source links unless the user asks for them.
 

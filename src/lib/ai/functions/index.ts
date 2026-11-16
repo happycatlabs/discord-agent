@@ -1,8 +1,8 @@
 import { searchWebAcquisition } from "../acquisition";
-import { searchBraveNews, searchImages } from "../brave";
 import { ECONOMY_AVAILABLE_FUNCTIONS, economyFunctions } from "./economy";
 import { KNOWLEDGE_AVAILABLE_FUNCTIONS, knowledgeFunctions } from "./knowledge";
 import { REACTION_ROLE_AVAILABLE_FUNCTIONS, reactionRoleFunctions } from "./reaction-roles";
+import { searchImagesTool, searchNewsTool } from "./search";
 import { SERVER_BUILDER_AVAILABLE_FUNCTIONS, serverBuilderFunctions } from "./server-builder";
 
 export enum AgentFunction {
@@ -135,9 +135,9 @@ export { KnowledgeFunction, knowledgeFunctions } from "./knowledge";
 type AvailableFunction = (...args: any[]) => unknown;
 
 export const AVAILABLE_FUNCTIONS: Record<string, AvailableFunction> = {
-	[AgentFunction.SEARCH_BRAVE_NEWS]: searchBraveNews,
+	[AgentFunction.SEARCH_BRAVE_NEWS]: searchNewsTool,
 	[AgentFunction.SEARCH_WEB]: searchWebAcquisition,
-	[AgentFunction.SEARCH_IMAGES]: searchImages,
+	[AgentFunction.SEARCH_IMAGES]: searchImagesTool,
 
 	// Reaction Roles
 	...REACTION_ROLE_AVAILABLE_FUNCTIONS,

@@ -23,7 +23,7 @@ import {
 } from "../../lib/db/search-sources";
 import { applyRoleReward, awardXp, sendLevelUpAnnouncement } from "../../lib/economy/xp";
 import { getServerProperties, getUserProperties } from "../../lib/util";
-import { chatFromDiscord, checkIfShouldReply } from "../../lib/util/openai";
+import { type ReplyDecision, chatFromDiscord, checkIfShouldReply } from "../../lib/util/openai";
 import { sanitizeAgentResponse } from "../../lib/util/response-content";
 import { reportEventError } from "../util";
 
@@ -653,34 +653,25 @@ export const messageCreate = {
 				? (Date.now() - new Date(lastAgentMessage?.createdAt).getTime()) / 1000
 				: Number.POSITIVE_INFINITY;
 
-			let shouldReplyAI = false;
-			let shouldReplyDirectly = false;
-			let shouldReact = false;
-			let reactionEmoji: string | undefined;
+			let decision: ReplyDecision = { action: "ignore" };
 
 			if (secondsSinceLastAgentMessage < AMBIENT_WINDOW_SECONDS && lastAgentMessage) {
-				try {
-					const {
-						shouldReply: _shouldReplyAI,
-						directReply,
-						shouldReact: _shouldReact,
-						reaction,
-					} = await checkIfShouldReply({
-						lastAgentMessage: lastAgentMessage,
-						recentMessages: messages,
-						usersMessage: (() => {
-							// Calculate conversation state metrics
-							const messagesSinceBot = recentMessages.filter(
-								(m) =>
-									!m.author.bot &&
-									new Date(m.createdAt).getTime() > new Date(lastAgentMessage.createdAt).getTime(),
-							);
-							const uniqueUsersSinceBot = new Set(messagesSinceBot.map((m) => m.author.id)).size;
-							const isDirectContinuation =
-								messagesSinceBot.length > 0 &&
-								messagesSinceBot[messagesSinceBot.length - 1]?.author.id === message.author.id;
+				decision = await checkIfShouldReply({
+					lastAgentMessage: lastAgentMessage,
+					recentMessages: messages,
+					usersMessage: (() => {
+						// Calculate conversation state metrics
+						const messagesSinceBot = recentMessages.filter(
+							(m) =>
+								!m.author.bot &&
+								new Date(m.createdAt).getTime() > new Date(lastAgentMessage.createdAt).getTime(),
+						);
+						const uniqueUsersSinceBot = new Set(messagesSinceBot.map((m) => m.author.id)).size;
+						const isDirectContinuation =
+							messagesSinceBot.length > 0 &&
+							messagesSinceBot[messagesSinceBot.length - 1]?.author.id === message.author.id;
 
-							return `${message.author.displayName} (${message.author.id}): ${message.content} at ${new Date(message.createdAt).toLocaleString()}
+						return `${message.author.displayName} (${message.author.id}): ${message.content} at ${new Date(message.createdAt).toLocaleString()}
 
 ${talkingDirectlyToBot ? "The user is talking directly to you." : ""}
 
@@ -690,40 +681,21 @@ ${currentMessageReactionSummary}
 - Time since your last message: ${Math.round(secondsSinceLastAgentMessage)}s ago
 - Messages since you spoke: ${messagesSinceBot.length}
 - Unique users since you spoke: ${uniqueUsersSinceBot}
-- Is this a direct continuation (same user responding): ${isDirectContinuation ? "YES" : "NO"}
-
-IMPORTANT: Only set shouldReact=true if the message clearly meets the react conditions (acknowledgment, agreement, sympathy, humor, etc.). Do NOT react simply because you're not replying. If in doubt, leave shouldReact=false.`;
-						})(),
-					});
-					shouldReplyAI = _shouldReplyAI;
-					shouldReplyDirectly = directReply;
-					shouldReact = _shouldReact || false;
-					reactionEmoji = reaction;
-
-					console.log({
-						shouldReplyAI,
-						shouldReplyDirectly,
-						shouldReact,
-						reactionEmoji,
-					});
-				} catch (error) {
-					console.error(`Error in checkIfShouldReply for message ${message.id}:`, error);
-					// Defaults for shouldReplyAI and shouldReplyDirectly are already false
-				}
+- Is this a direct continuation (same user responding): ${isDirectContinuation ? "YES" : "NO"}`;
+					})(),
+				});
 			}
 
-			// Handle reactions if should react but not reply
-			if (!talkingDirectlyToBot && !shouldReplyAI && shouldReact && reactionEmoji) {
+			if (!talkingDirectlyToBot && decision.action === "react") {
 				try {
-					await message.react(reactionEmoji);
-					console.log(`🤖 Reacted with ${reactionEmoji} to message: ${message.content}`);
+					await message.react(decision.emoji);
 				} catch (reactionError) {
-					console.error(
-						`Error reacting to message ${message.id} with ${reactionEmoji}:`,
-						reactionError,
-					);
+					console.error(`Error reacting to message ${message.id}:`, reactionError);
 				}
 			}
+
+			const shouldReplyAI = decision.action === "reply";
+			const shouldReplyDirectly = decision.action === "reply" && decision.quoteMessage;
 
 			if (talkingDirectlyToBot || shouldReplyAI) {
 				console.log(

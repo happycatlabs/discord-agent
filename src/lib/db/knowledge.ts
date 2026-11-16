@@ -1,3 +1,4 @@
+import { ADMIN_USER_IDS } from "../constants";
 import { FEATURE_VECTOR_KB } from "../constants/flags";
 import { embedText, GEMINI_EMBEDDING_DIMENSIONS, GEMINI_EMBEDDING_MODEL } from "../ai/embeddings";
 import { createLogger } from "../util/logger";
@@ -82,11 +83,15 @@ const normalizeScopeIds = ({
 	return { ownerUserId: "", serverId: "" };
 };
 
+// Global knowledge reaches every server, so a single server's admin can't change it.
+const isBotOwner = (context: KnowledgeContext) =>
+	ADMIN_USER_IDS.includes(normalizeId(context.userId));
+
 const assertCanWriteScope = (scope: KnowledgeScope, context: KnowledgeContext) => {
 	if (!context.userId) throw new Error("Knowledge writes require a user.");
 	if (scope === "user") return;
 	if (scope === "server" && context.serverId && context.isAdmin) return;
-	if (scope === "global" && context.isAdmin) return;
+	if (scope === "global" && isBotOwner(context)) return;
 	throw new Error(`Not authorized to write ${scope}-scoped knowledge.`);
 };
 
@@ -96,7 +101,7 @@ const assertCanDeleteEntry = (entry: KnowledgeEntryRow, context: KnowledgeContex
 
 	if (entry.scope === "user" && entry.owner_user_id === userId) return;
 	if (entry.scope === "server" && entry.server_id === serverId && context.isAdmin) return;
-	if (entry.scope === "global" && context.isAdmin) return;
+	if (entry.scope === "global" && isBotOwner(context)) return;
 
 	throw new Error("Not authorized to delete that knowledge entry.");
 };

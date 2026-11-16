@@ -73,7 +73,12 @@ export interface SubAgentResult {
  * Categorized error types for better error handling.
  */
 export enum SubAgentError {
+	/** The bot lacks a Discord permission. */
 	PERMISSION_DENIED = "PERMISSION_DENIED",
+	/** The requesting user isn't an admin or whitelisted. */
+	USER_NOT_AUTHORIZED = "USER_NOT_AUTHORIZED",
+	/** A server-only tool was requested from a DM. */
+	SERVER_ONLY = "SERVER_ONLY",
 	RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND",
 	RATE_LIMITED = "RATE_LIMITED",
 	INVALID_INPUT = "INVALID_INPUT",

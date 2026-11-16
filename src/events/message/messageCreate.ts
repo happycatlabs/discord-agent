@@ -27,9 +27,8 @@ import { chatFromDiscord, checkIfShouldReply } from "../../lib/util/openai";
 import { sanitizeAgentResponse } from "../../lib/util/response-content";
 import { reportEventError } from "../util";
 
-// Simple per-channel debounce map
-const channelTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-const IDLE_DELAY = 3500; // wait 3.5s of silence before responding
+// The bot only joins in on its own while it has spoken in the channel this recently.
+const AMBIENT_WINDOW_SECONDS = 20 * 60;
 const DISCORD_CONTENT_LIMIT = 2000;
 const DISCORD_SAFE_CONTENT_LIMIT = 1900;
 const AGENT_MENTION_REGEX = new RegExp(`^<@!?${AGENT_USER_ID}>(?:\\s|$)`);
@@ -363,110 +362,6 @@ function reportDiscordMessageFetchError(error: unknown, context: FetchErrorConte
 	});
 }
 
-function cancelTimeout(channelId: string) {
-	const existing = channelTimeouts.get(channelId);
-	if (existing) {
-		clearTimeout(existing);
-		channelTimeouts.delete(channelId);
-		return true;
-	}
-	return false;
-}
-
-async function evaluateChannel(channel: BaseGuildTextChannel) {
-	try {
-		// Fetch recent messages for context
-		const fetched = await channel.messages.fetch({ limit: 25, cache: false });
-		const messagesArr = Array.from(fetched.values()).reverse();
-		// Filter out bot messages
-		const humanMessages = messagesArr.filter((m) => !m.author.bot);
-		if (humanMessages.length === 0) return; // nothing to respond to
-
-		const lastMsg = humanMessages[humanMessages.length - 1];
-		// Build recentMessages string for AI
-		const recentContext = messagesArr
-			.map((m) => `${m.author.displayName}: ${m.content}`)
-			.join("\n");
-
-		// Use checkIfShouldReply to see if we need to say anything
-		let shouldReplyDecision = { shouldReply: false, directReply: false } as any;
-		try {
-			shouldReplyDecision = await checkIfShouldReply({
-				lastAgentMessage: await getLastAgentMessageFromChannel({
-					serverId: channel.guild?.id as string,
-					channelId: channel.id,
-				}),
-				recentMessages: recentContext,
-				usersMessage: `${lastMsg.author.displayName}: ${lastMsg.content}`,
-			});
-		} catch (err) {
-			console.error("Error in debounced checkIfShouldReply:", err);
-		}
-
-		if (!shouldReplyDecision.shouldReply) {
-			return; // stay quiet
-		}
-
-		const typing = startTypingUntilDone(channel);
-		const status = createStatusReporter(channel);
-		const searchSources: SearchSourceCapture[] = [];
-		let aiText: string | undefined;
-		try {
-			aiText = await chatFromDiscord({
-				user: {
-					id: lastMsg.author.id,
-					username: lastMsg.author.username,
-					mentionString: `<@${lastMsg.author.id}>`,
-					isAdmin: false,
-				},
-				serverId: channel.guild?.id as string,
-				channelId: channel.id,
-				triggerMessageId: lastMsg.id,
-				message: "Respond naturally.",
-				recentMessages: recentContext,
-				onStatus: status.update,
-				onSearchSources: (search) => {
-					searchSources.push(search);
-				},
-			});
-		} finally {
-			typing.stop();
-			await status.clear();
-		}
-		if (!aiText) return;
-
-		const sent = await sendAgentResponse({
-			channel,
-			content: aiText,
-			replyTo: shouldReplyDecision.directReply ? lastMsg : undefined,
-		});
-		if (!sent) return;
-		persistSearchSourcesForReply({
-			searchSources,
-			serverId: channel.guild?.id as string,
-			channelId: channel.id,
-			userId: lastMsg.author.id,
-			userMessageId: lastMsg.id,
-			responseMessageId: sent.id,
-		});
-
-		await storeAgentMessage({
-			message: {
-				createdAt: sent.createdAt,
-				author: sent.author.id,
-				id: sent.id,
-				content: aiText,
-				server: channel.guild?.id as string,
-				channel: channel.id,
-			},
-			serverId: channel.guild?.id as string,
-			channelId: channel.id,
-		});
-	} catch (err) {
-		console.error("Error executing debounced evaluation:", err);
-	}
-}
-
 async function shouldReplyToMessage(message: Message, initialReference?: Message | null) {
 	let referenceMessage: Message | null = initialReference ?? null;
 	if (!referenceMessage && message.reference?.messageId && message.channel?.messages?.fetch) {
@@ -639,10 +534,6 @@ export const messageCreate = {
 
 			const channel = message.channel as BaseGuildTextChannel;
 
-			// IMPORTANT: Cancel any pending responses in this channel when a new message arrives
-			// This prevents the bot from responding to outdated context
-			const _wasCancelled = cancelTimeout(channel.id);
-
 			let _serverFromDB;
 			try {
 				_serverFromDB = await getServer({ serverId: server.id as string });
@@ -764,17 +655,14 @@ export const messageCreate = {
 
 			let shouldReplyAI = false;
 			let shouldReplyDirectly = false;
-			let shouldWaitAI = false;
 			let shouldReact = false;
 			let reactionEmoji: string | undefined;
 
-			if (secondsSinceLastAgentMessage < 1200 && lastAgentMessage) {
-				// Added lastAgentMessage check
+			if (secondsSinceLastAgentMessage < AMBIENT_WINDOW_SECONDS && lastAgentMessage) {
 				try {
 					const {
 						shouldReply: _shouldReplyAI,
 						directReply,
-						shouldWait: _shouldWait,
 						shouldReact: _shouldReact,
 						reaction,
 					} = await checkIfShouldReply({
@@ -809,14 +697,12 @@ IMPORTANT: Only set shouldReact=true if the message clearly meets the react cond
 					});
 					shouldReplyAI = _shouldReplyAI;
 					shouldReplyDirectly = directReply;
-					shouldWaitAI = _shouldWait ?? false;
 					shouldReact = _shouldReact || false;
 					reactionEmoji = reaction;
 
 					console.log({
 						shouldReplyAI,
 						shouldReplyDirectly,
-						shouldWaitAI,
 						shouldReact,
 						reactionEmoji,
 					});
@@ -860,89 +746,69 @@ IMPORTANT: Only set shouldReact=true if the message clearly meets the react cond
 					.filter(Boolean)
 					.join("\n\n");
 
-				// Response speed matters more than waiting for conversational silence.
-				const shouldRespondImmediately = talkingDirectlyToBot || shouldReplyAI;
-				if (shouldRespondImmediately) {
-					console.log(
-						talkingDirectlyToBot
-							? "⚡ Immediate response for direct mention"
-							: "⚡ Immediate response (AI decided not to wait)",
-					);
-					// Immediate response for direct mentions or when AI decides not to wait
+				try {
+					const typing = startTypingUntilDone(channel);
+					const status = createStatusReporter(channel);
+					const searchSources: SearchSourceCapture[] = [];
+					let aiResponse: string | undefined;
 					try {
-						const typing = startTypingUntilDone(channel);
-						const status = createStatusReporter(channel);
-						const searchSources: SearchSourceCapture[] = [];
-						let aiResponse: string | undefined;
-						try {
-							aiResponse = await chatFromDiscord({
-								user: {
-									id: author.id,
-									username: author.username,
-									mentionString: `<@${author.id}>`,
-									isAdmin: hasChatPerms,
-								},
-								serverId: server.id as string,
-								channelId: channel.id,
-								triggerMessageId: message.id,
-								referencedMessageId: reference?.id,
-								message: interactionPrompt,
-								recentMessages: messages,
-								onStatus: status.update,
-								onSearchSources: (search) => {
-									searchSources.push(search);
-								},
-							});
-						} finally {
-							typing.stop();
-							await status.clear();
-						}
-
-						if (aiResponse) {
-							const reply = await sendAgentResponse({
-								channel,
-								content: aiResponse,
-								replyTo: shouldReplyDirectly ? message : undefined,
-							});
-							if (!reply) return;
-							persistSearchSourcesForReply({
-								searchSources,
-								serverId: server.id as string,
-								channelId: channel.id,
-								userId: author.id,
-								userMessageId: message.id,
-								responseMessageId: reply.id,
-							});
-
-							await storeAgentMessage({
-								message: {
-									createdAt: reply.createdAt,
-									author: reply.author.id,
-									id: reply.id,
-									content: aiResponse,
-									server: message.guild?.id as string,
-									channel: channel.id,
-								},
-								serverId: message.guild?.id as string,
-								channelId: channel.id,
-							});
-						}
-					} catch (aiError) {
-						console.error(`AI interaction or reply failed for message ${message.id}:`, aiError);
-						message
-							.reply({ content: "Sorry, I can't generate a response right now." })
-							.catch(console.error);
+						aiResponse = await chatFromDiscord({
+							user: {
+								id: author.id,
+								username: author.username,
+								mentionString: `<@${author.id}>`,
+								isAdmin: hasChatPerms,
+							},
+							serverId: server.id as string,
+							channelId: channel.id,
+							triggerMessageId: message.id,
+							referencedMessageId: reference?.id,
+							message: interactionPrompt,
+							recentMessages: messages,
+							onStatus: status.update,
+							onSearchSources: (search) => {
+								searchSources.push(search);
+							},
+						});
+					} finally {
+						typing.stop();
+						await status.clear();
 					}
-				} else {
-					// Debounced response for AI decisions
-					console.log("⏱️  Debounced response for AI decision");
-					// Cancel & schedule debounce
-					cancelTimeout(channel.id);
-					const tId = setTimeout(() => {
-						evaluateChannel(channel).catch(console.error);
-						channelTimeouts.delete(channel.id);
-					}, IDLE_DELAY);
-					channelTimeouts.set(channel.id, tId);
+
+					if (aiResponse) {
+						const reply = await sendAgentResponse({
+							channel,
+							content: aiResponse,
+							replyTo: shouldReplyDirectly ? message : undefined,
+						});
+						if (!reply) return;
+						persistSearchSourcesForReply({
+							searchSources,
+							serverId: server.id as string,
+							channelId: channel.id,
+							userId: author.id,
+							userMessageId: message.id,
+							responseMessageId: reply.id,
+						});
+
+						await storeAgentMessage({
+							message: {
+								createdAt: reply.createdAt,
+								author: reply.author.id,
+								id: reply.id,
+								content: aiResponse,
+								server: message.guild?.id as string,
+								channel: channel.id,
+							},
+							serverId: message.guild?.id as string,
+							channelId: channel.id,
+						});
+					}
+				} catch (aiError) {
+					console.error(`AI interaction or reply failed for message ${message.id}:`, aiError);
+					message
+						.reply({ content: "Sorry, I can't generate a response right now." })
+						.catch(console.error);
 				}
 			}
 

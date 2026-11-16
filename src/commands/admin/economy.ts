@@ -33,6 +33,7 @@ export const economyAdmin = {
 	data: new SlashCommandBuilder()
 		.setName("economy")
 		.setDescription("Economy administration commands")
+		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addSubcommand((sub) =>
 			sub
 				.setName("set")
@@ -104,9 +105,10 @@ export const economyAdmin = {
 				return;
 			}
 
-			if (subcommand !== "give" && !isAdmin) {
+			// Every subcommand creates or changes balances, so all of them are admin-only.
+			if (!isAdmin) {
 				await interaction.reply({
-					content: "Only administrators can use this subcommand.",
+					content: "Only administrators can use economy admin commands.",
 					flags: [MessageFlags.Ephemeral],
 				});
 				return;

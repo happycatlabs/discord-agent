@@ -1,10 +1,10 @@
 # discord-agent
 
-A Discord bot that takes part in conversations the way a person in the server would. It doesn't wait to be @mentioned: it reads the channel and decides for itself whether to reply, react with an emoji, or stay quiet.
+A Discord bot that takes part in conversations the way a person in the server would. @mention it or reply to it to start talking. After that it keeps following the channel and decides for itself whether to reply, react with an emoji, or stay quiet.
 
 ## What it does
 
-- **Decides when to speak.** Every message goes through a quick AI check that answers four questions: reply or not, react or not, reply to this specific message or just post in the channel, and whether to hold off a few seconds. Staying quiet is the default. It ignores side conversations, "lol" and "brb", and holds back in busy channels in case someone else answers first.
+- **Decides when to speak.** For 20 minutes after it last spoke in a channel, every message goes through a quick AI check: reply or not, react or not, and whether to reply to that specific message or just post in the channel. Staying quiet is the default. It ignores side conversations, "lol" and "brb".
 - **Remembers the channel.** It stores messages in SQLite and uses recent history, plus its own last message, as context.
 - **Looks things up.** It can search the web and read pages through Brave, SerpAPI, Jina or Parallel, whichever have keys set.
 - **Optional extras**, each behind a feature flag: XP and levels, an economy with betting and casino games, and a vector knowledge base.

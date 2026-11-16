@@ -11,6 +11,7 @@ import {
 	type Message,
 } from "discord.js";
 import { z } from "zod";
+import { ADMIN_USER_IDS } from "../../lib/constants";
 import { FEATURE_VECTOR_KB } from "../../lib/constants/flags";
 import { checkIfUserIsWhitelisted } from "../../lib/db/guild/whitelist-user";
 import {
@@ -380,6 +381,14 @@ export const knowledge = {
 			const scope = (interaction.options.getString("scope") ?? "server") as KnowledgeScope;
 			const shouldSave = interaction.options.getBoolean("save") ?? false;
 			const context = buildKnowledgeContext({ interaction, authorized });
+
+			if (scope === "global" && shouldSave && !ADMIN_USER_IDS.includes(interaction.user.id)) {
+				await interaction.reply({
+					content: "Only the bot owner can save global knowledge. Use server scope instead.",
+					flags: [MessageFlags.Ephemeral],
+				});
+				return;
+			}
 
 			await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

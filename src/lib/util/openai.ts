@@ -109,7 +109,9 @@ export const chatFromDiscord = async ({
 		id: string;
 		mentionString: string; // <@1234567890>
 		username: string;
-	} & Record<string, any>;
+		/** Administrator or server whitelist. Unlocks server-management tools. */
+		isAdmin: boolean;
+	};
 	message: string;
 	recentMessages?: string;
 	onStatus?: (message: string) => void | Promise<void>;
@@ -192,12 +194,6 @@ const shouldReplySchema = z.object({
 		.describe(
 			"Set to true ONLY if there are multiple active conversations happening simultaneously and you need to clarify which specific message you're responding to. In most normal conversations, this should be false - just send a regular message.",
 		),
-	shouldWait: z
-		.boolean()
-		.optional()
-		.describe(
-			"Set to true if you should wait 5 seconds before responding (to see if conversation evolves). Set to false to respond immediately. Only relevant when shouldReply=true.",
-		),
 	shouldReact: z
 		.boolean()
 		.optional()
@@ -277,22 +273,7 @@ React *only* in these specific cases:
 - For normal back-and-forth conversation (even when someone @mentions you), use directReply=false
 - **Default behavior: directReply=false** - most conversations don't need direct replies
 - Think: "Would a normal person need to clarify who they're talking to here?" If no, then directReply=false
-
-**Should Wait Logic (shouldWait):**
-When shouldReply=true, decide if you should wait 5 seconds before responding:
-
-**WAIT (shouldWait = true):**
-- You just spoke recently (< 60 seconds ago) and multiple people are actively chatting
-- The conversation is evolving rapidly with multiple participants
-- There's a chance others might respond and make your response redundant
-- You want to see if the conversation naturally resolves before jumping in
-
-**RESPOND IMMEDIATELY (shouldWait = false):**
-- It's been a while since you spoke (> 60 seconds) - no reason to delay further
-- This is a clear 1-on-1 conversation with consistent back-and-forth
-- The user asked a direct question or made a direct request
-- The message clearly expects an immediate response
-- **Default behavior: shouldWait=false** - most responses don't need artificial delays`,
+`,
 				},
 			],
 		});
@@ -304,7 +285,7 @@ When shouldReply=true, decide if you should wait 5 seconds before responding:
 		}
 
 		console.log(
-			`🤖 Reply: shouldReply=${parsed.shouldReply}, directReply=${parsed.directReply}, shouldWait=${parsed.shouldWait}, shouldReact=${parsed.shouldReact}, reaction=${parsed.reaction}`,
+			`🤖 Reply: shouldReply=${parsed.shouldReply}, directReply=${parsed.directReply}, shouldReact=${parsed.shouldReact}, reaction=${parsed.reaction}`,
 		);
 
 		return parsed;

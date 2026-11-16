@@ -360,6 +360,10 @@ const getErrorResponse = (result: SubAgentResult): string => {
 	switch (result.errorType) {
 		case SubAgentError.PERMISSION_DENIED:
 			return "i don't have the right permissions to do that. might need to check my role in the server settings";
+		case SubAgentError.USER_NOT_AUTHORIZED:
+			return "only server admins or whitelisted users can have me do that";
+		case SubAgentError.SERVER_ONLY:
+			return "that only works in a server, try it there";
 		case SubAgentError.RESOURCE_NOT_FOUND:
 			return "couldn't find what you're referring to. maybe double check the channel/role name?";
 		case SubAgentError.RATE_LIMITED:

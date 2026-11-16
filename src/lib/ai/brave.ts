@@ -145,12 +145,12 @@ export async function searchBraveNews({
 		// Validate response structure
 		if (!data || typeof data !== "object") {
 			console.error("❌ Invalid response structure: response is not an object");
-			return [];
+			return { success: false, error: "Brave returned an unexpected response." };
 		}
 
 		if (!Array.isArray(data.results)) {
-			console.error("❌ Invalid response structure: results is not an array", data);
-			return [];
+			console.error("❌ Invalid response structure: results is not an array");
+			return { success: false, error: "Brave returned an unexpected response." };
 		}
 
 		console.log(`✅ Successfully fetched ${data.results?.length || 0} results from Brave News`);
@@ -331,12 +331,12 @@ export async function searchImages({
 		// Validate response structure
 		if (!data || typeof data !== "object") {
 			console.error("❌ Invalid response structure: response is not an object");
-			return [];
+			return { success: false, error: "Brave returned an unexpected response." };
 		}
 
 		if (!Array.isArray(data.results)) {
-			console.error("❌ Invalid response structure: results is not an array", data);
-			return [];
+			console.error("❌ Invalid response structure: results is not an array");
+			return { success: false, error: "Brave returned an unexpected response." };
 		}
 
 		console.log(

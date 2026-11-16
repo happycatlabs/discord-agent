@@ -16,6 +16,7 @@ import { z } from "zod";
 import { AVAILABLE_FUNCTIONS, FUNCTIONS } from "../../functions";
 import { logAiPayloadStats, summarizeToolOutputForLog } from "../../prompt-logging";
 import { createLogger } from "../../../util/logger";
+import { bindToolCall, isContextBoundParam, type ToolDenialCode } from "../../tool-access";
 import {
 	type DelegationParams,
 	type SubAgentConfig,
@@ -27,6 +28,7 @@ type SubAgentTool = Tool<Record<string, unknown>, any>;
 type ToolOutput = {
 	success?: boolean;
 	error?: string;
+	code?: ToolDenialCode;
 	message?: string;
 	results?: Array<{
 		title?: string;
@@ -128,8 +130,11 @@ export const createToolsFromFunctions = (
 
 		// Build Zod schema from OpenAI-style parameters
 		// This converts { type: "string", description: "..." } to z.string().describe("...")
-		const schemaEntries = Object.entries(funcDef.function.parameters.properties).map(
-			([key, prop]: [string, any]) => {
+		const paramNames = Object.keys(funcDef.function.parameters.properties);
+		// Server and acting-user params come from trusted context, so the model never sees them.
+		const schemaEntries = Object.entries(funcDef.function.parameters.properties)
+			.filter(([key]) => !isContextBoundParam(key))
+			.map(([key, prop]: [string, any]) => {
 				let zodSchema: z.ZodType;
 
 				// Handle different parameter types
@@ -157,8 +162,7 @@ export const createToolsFromFunctions = (
 				}
 
 				return [key, zodSchema];
-			},
-		);
+			});
 
 		const parametersSchema = z.object(Object.fromEntries(schemaEntries));
 
@@ -185,13 +189,19 @@ export const createToolsFromFunctions = (
 					});
 				}
 
+				const access = bindToolCall(funcName, paramNames, args, context);
+				if (!access.ok) {
+					logger.warn("tool call denied", { tool: funcName, code: access.denial.code });
+					return access.denial;
+				}
+
 				try {
 					// Look up and execute the actual function
 					const functionToCall = AVAILABLE_FUNCTIONS[funcName as keyof typeof AVAILABLE_FUNCTIONS];
 					if (!functionToCall) {
 						throw new Error(`Function ${funcName} not found`);
 					}
-					const result = await functionToCall(args as never, context);
+					const result = await functionToCall(access.args as never, context);
 					if (
 						funcName === "SEARCH_WEB" &&
 						hasExplicitSuccessFlag(result) &&
@@ -338,12 +348,18 @@ export const executeSubAgent = async (
 		// If all operations failed, return error result
 		if (failedOps.length > 0 && successfulOps.length === 0) {
 			const firstError = failedOps[0].output;
+			const denied = failedOps.find((op) => op.output.code)?.output.code;
 			return {
 				success: false,
 				summary: `Failed to complete ${config.name} operation`,
 				error: firstError.error || "Unknown error",
-				errorType: categorizeError(firstError.error),
-				retryable: true,
+				errorType:
+					denied === "admin_only"
+						? SubAgentError.USER_NOT_AUTHORIZED
+						: denied === "server_only"
+							? SubAgentError.SERVER_ONLY
+							: categorizeError(firstError.error),
+				retryable: !denied,
 			};
 		}
 

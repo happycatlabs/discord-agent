@@ -1,0 +1,9 @@
+.env
+node_modules/
+discord_database.db/
+history.txt
+discord-agent
+data/
+*.tsbuildinfo
+.DS_Store
+.claude/settings.local.json

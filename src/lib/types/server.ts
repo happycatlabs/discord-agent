@@ -1,0 +1,21 @@
+export type Server = {
+	id: string;
+	databaseID?: string;
+	name: string;
+	banner: string | null;
+	icon: string | null;
+	owner: string;
+	memberCount: number;
+	joinedAt: string;
+	createdAt: string;
+	guild?: any;
+	logChannel?: string;
+	initializedAt?: string;
+	ignoredChannels?: string[];
+	ignoredRoles?: string[];
+	ignoredUsers?: string[];
+	ignoredCommands?: string[];
+	ignoredEvents?: string[];
+	ignoredCategories?: string[];
+	whitelistedUsers?: string[];
+};

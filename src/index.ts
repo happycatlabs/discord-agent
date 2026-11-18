@@ -1,8 +1,8 @@
 require("dotenv").config();
 
 import os from "node:os";
-import * as Sentry from "@sentry/node";
-import { Scope } from "@sentry/node";
+import * as Sentry from "@sentry/bun";
+import { Scope } from "@sentry/bun";
 import { Client, Collection, GatewayIntentBits, Options, Partials } from "discord.js";
 import { commands } from "./commands";
 import { events } from "./events";
@@ -13,9 +13,22 @@ Sentry.init({
 	dsn: process.env.SENTRY_DSN,
 	environment: process.env.NODE_ENV || "production",
 	release: process.env.SENTRY_RELEASE,
-	sendDefaultPii: false,
 	tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? "0"),
-	_experiments: { enableLogs: true },
+	// Sentry 11 collects all of these by default. They can carry Discord message text, prompts
+	// and tokens, which must not leave the bot (AGENTS.md: Logging). Errors and stack traces still go.
+	dataCollection: {
+		userInfo: false,
+		cookies: false,
+		httpHeaders: false,
+		httpBodies: [],
+		urlQueryParams: false,
+		graphQL: { document: false, variables: false },
+		genAI: { inputs: false, outputs: false },
+		mcp: { inputs: false, outputs: false },
+		databaseQueryData: false,
+		queues: false,
+		stackFrameVariables: false,
+	},
 });
 
 type GenericEventExecute = (...args: unknown[]) => unknown;

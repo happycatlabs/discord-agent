@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { unignoreChannel } from "../../../lib/db/guild";
 import { unignoreUser } from "../../../lib/db/guild/ignore-user";

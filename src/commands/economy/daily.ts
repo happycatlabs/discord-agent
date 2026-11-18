@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { FEATURE_LEVELING } from "../../lib/constants/flags";
 import {

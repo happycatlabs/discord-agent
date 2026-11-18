@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from "@discordjs/builders";
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import {
 	EmbedBuilder,
 	type GuildTextBasedChannel,

@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 
 type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 type LogContext = Record<string, unknown>;

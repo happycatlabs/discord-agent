@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { getOrCreateUserEconomy, setUserLevel } from "../../lib/db/economy";
 import { totalXpForLevel } from "../../lib/economy/xp";

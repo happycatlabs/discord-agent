@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { formatLine, getOrCalculateLine } from "../../lib/betting/lines";
 import { getMetricDisplayName } from "../../lib/betting/metrics";

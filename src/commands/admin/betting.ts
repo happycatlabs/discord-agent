@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { getBet, voidBet } from "../../lib/db/betting";
 import { updateEconomyConfig, updateUserCoins } from "../../lib/db/economy";

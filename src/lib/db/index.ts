@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import * as sqliteVec from "sqlite-vec";
 import { DEBUG, FEATURE_VECTOR_KB } from "../constants/flags";
 import { createLogger } from "../util/logger";

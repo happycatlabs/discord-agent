@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { getOrCreateUserEconomy, getUserRank } from "../../lib/db/economy";
 import { xpProgressInLevel } from "../../lib/economy/xp";

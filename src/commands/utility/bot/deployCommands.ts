@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { ADMIN_USER_IDS } from "../../../lib/constants";
 

@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/node";
+import { captureException } from "@sentry/bun";
 import { all, get, normalizeId, run, withPrefix } from ".";
 import type { StoredMessage } from "../types/messages";
 import { LogType, log } from "../util";

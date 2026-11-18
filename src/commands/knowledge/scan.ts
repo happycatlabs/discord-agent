@@ -1,5 +1,5 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/bun";
 import { generateText, Output } from "ai";
 import {
 	EmbedBuilder,

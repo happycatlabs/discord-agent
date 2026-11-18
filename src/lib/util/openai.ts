@@ -111,6 +111,8 @@ export const chatFromDiscord = async ({
 		username: string;
 		/** Administrator or server whitelist. Unlocks server-management tools. */
 		isAdmin: boolean;
+		/** Server-level Discord permissions. Unlocks the tools that match them. */
+		permissions?: bigint;
 	};
 	message: string;
 	recentMessages?: string;
@@ -157,6 +159,7 @@ ${storedSourceContext}`
 			userMentionString: user?.mentionString || "",
 			username: user?.username || "unknown",
 			isAdmin: Boolean(user?.isAdmin),
+			permissions: user?.permissions,
 			originalMessage: routedMessage,
 			channelId,
 			triggerMessageId,

@@ -361,7 +361,7 @@ const getErrorResponse = (result: SubAgentResult): string => {
 		case SubAgentError.PERMISSION_DENIED:
 			return "i don't have the right permissions to do that. might need to check my role in the server settings";
 		case SubAgentError.USER_NOT_AUTHORIZED:
-			return "only server admins or whitelisted users can have me do that";
+			return result.error || "you don't have permission to have me do that";
 		case SubAgentError.SERVER_ONLY:
 			return "that only works in a server, try it there";
 		case SubAgentError.RESOURCE_NOT_FOUND:

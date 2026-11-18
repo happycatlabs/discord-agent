@@ -65,7 +65,7 @@ For a narrow change, run the focused tests first, then the full set.
 
 - It ignores bot authors. DMs (`!message.guild`) go through `handleDirectMessage()`.
 - **DMs:** fetch up to 25 recent messages, include attachment URLs, show typing and a status embed, call `chatFromDiscord()`, send the response, then save the sources it used.
-- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Admin status only unlocks server-management tools. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which returns one decision: `reply` (with `quoteMessage`), `react` (with `emoji`) or `ignore`. Chat content goes in the user turn, never the system prompt, so messages can't rewrite the instructions.
+- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Server-management tools need admin or the matching Discord permission. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which returns one decision: `reply` (with `quoteMessage`), `react` (with `emoji`) or `ignore`. Chat content goes in the user turn, never the system prompt, so messages can't rewrite the instructions.
 - The ambient check only runs while the bot has spoken in that channel within `AMBIENT_WINDOW_SECONDS` (20 minutes). Approved replies go out immediately.
 - The bot's own ID is `AGENT_USER_ID`, which defaults to `CLIENT_ID`. At startup it logs an error if they don't match.
 
@@ -131,7 +131,7 @@ Don't rely on prompts for permissions.
 - In servers, Administrator or the server whitelist sets `isAdmin` in `DelegationContext`. Ambient replies and DMs are always `isAdmin: false`.
 - `src/lib/ai/tool-access.ts` enforces this for every tool call in `sub-agents/base.ts`:
   - `serverId` and `createdBy` are hidden from the model and filled from context, so the model can't target another server or impersonate a user.
-  - Any tool with a `serverId` parameter rejects DMs, and needs admin unless it's listed in `MEMBER_SERVER_TOOLS`. New server tools are admin-only by default.
+  - Any tool with a `serverId` parameter rejects DMs. In servers it runs for admins (Administrator or whitelist), for members holding the Discord permissions listed for it in `TOOL_PERMISSIONS` (e.g. `DELETE_CHANNEL` needs Manage Channels), or for anyone if it's in `MEMBER_SERVER_TOOLS`. A new server tool in neither list is admin-only.
 - Owner-only commands such as `/dc` check `ADMIN_USER_IDS`.
 
 Knowledge scopes:

@@ -318,13 +318,14 @@ export const executeSubAgent = async (
 		// If all operations failed, return error result
 		if (failedOps.length > 0 && successfulOps.length === 0) {
 			const firstError = failedOps[0].output;
-			const denied = failedOps.find((op) => op.output.code)?.output.code;
+			const denial = failedOps.find((op) => op.output.code)?.output;
+			const denied = denial?.code;
 			return {
 				success: false,
 				summary: `Failed to complete ${config.name} operation`,
-				error: firstError.error || "Unknown error",
+				error: (denial ?? firstError).error || "Unknown error",
 				errorType:
-					denied === "admin_only"
+					denied === "not_permitted"
 						? SubAgentError.USER_NOT_AUTHORIZED
 						: denied === "server_only"
 							? SubAgentError.SERVER_ONLY

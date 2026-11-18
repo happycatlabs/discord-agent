@@ -1018,21 +1018,15 @@ async function resolveMessagePinTarget(
 	{ serverId, channelId, messageId }: MessagePinArgs,
 	context?: DelegationContext,
 ) {
-	if (!context?.isAdmin) {
-		return {
-			ok: false as const,
-			error: "Only server admins or whitelisted users can pin messages through me.",
-		};
-	}
-
-	const resolvedServerId = serverId || context.serverId;
-	const resolvedChannelId = channelId || context.channelId;
-	const resolvedMessageId = messageId || context.referencedMessageId;
+	// Who may pin is checked in tool-access.ts (PinMessages, admin or whitelist).
+	const resolvedServerId = serverId || context?.serverId;
+	const resolvedChannelId = channelId || context?.channelId;
+	const resolvedMessageId = messageId || context?.referencedMessageId;
 
 	if (!resolvedServerId) {
 		return { ok: false as const, error: "Pinning messages only works in a server." };
 	}
-	if (context.serverId && resolvedServerId !== context.serverId) {
+	if (context?.serverId && resolvedServerId !== context.serverId) {
 		return { ok: false as const, error: "I can only pin messages in the current server." };
 	}
 	if (!resolvedChannelId) {

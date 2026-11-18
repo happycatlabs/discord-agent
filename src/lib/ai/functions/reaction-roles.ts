@@ -8,6 +8,9 @@ import {
 	getReactionRoleMessagesForServer,
 	removeReactionRoleMapping,
 } from "../../db/reaction-roles";
+import { normalizeId } from "../../db";
+import type { DelegationContext } from "../agents/types";
+import { hasFullServerAccess } from "../tool-access";
 
 // Lazy getter to avoid circular dependency - DISCORD_CLIENT is loaded at runtime
 const getDiscordClient = (): Client => {
@@ -29,6 +32,12 @@ export enum ReactionRoleFunction {
 }
 
 // Function definitions for AI
+/** A reaction-role setup, only if it belongs to this server. */
+const getServerReactionRoleMessage = (serverId: string, messageId: string) => {
+	const record = getReactionRoleMessage({ messageId });
+	return record && record.server_id === normalizeId(serverId) ? record : undefined;
+};
+
 export const reactionRoleFunctions = [
 	{
 		type: "function",
@@ -297,19 +306,22 @@ export const createReactionRoleMessageTool = async ({
 	}
 };
 
-export const addReactionRoleMappingTool = async ({
-	serverId,
-	messageId,
-	emoji,
-	roleId,
-}: {
-	serverId: string;
-	messageId: string;
-	emoji: string;
-	roleId: string;
-}) => {
+export const addReactionRoleMappingTool = async (
+	{
+		serverId,
+		messageId,
+		emoji,
+		roleId,
+	}: {
+		serverId: string;
+		messageId: string;
+		emoji: string;
+		roleId: string;
+	},
+	context?: DelegationContext,
+) => {
 	try {
-		const reactionRoleMsg = getReactionRoleMessage({ messageId });
+		const reactionRoleMsg = getServerReactionRoleMessage(serverId, messageId);
 		if (!reactionRoleMsg) {
 			return {
 				success: false,
@@ -324,6 +336,17 @@ export const addReactionRoleMappingTool = async ({
 		const role = await guild.roles.fetch(roleId);
 		if (!role) {
 			return { success: false, error: `Role with ID ${roleId} not found.` };
+		}
+
+		// Members can only hand out roles below their own highest role, like in Discord.
+		if (!hasFullServerAccess(context)) {
+			const requester = await guild.members.fetch(context?.userId ?? "").catch(() => null);
+			if (!requester || role.position >= requester.roles.highest.position) {
+				return {
+					success: false,
+					error: "You can only map roles that are below your own highest role.",
+				};
+			}
 		}
 
 		// Check role hierarchy
@@ -396,7 +419,7 @@ export const removeReactionRoleMappingTool = async ({
 	emoji: string;
 }) => {
 	try {
-		const reactionRoleMsg = getReactionRoleMessage({ messageId });
+		const reactionRoleMsg = getServerReactionRoleMessage(serverId, messageId);
 		if (!reactionRoleMsg) {
 			return { success: false, error: "Message is not a reaction role message." };
 		}
@@ -450,7 +473,7 @@ export const editReactionRoleMessageTool = async ({
 	newContent: string;
 }) => {
 	try {
-		const reactionRoleMsg = getReactionRoleMessage({ messageId });
+		const reactionRoleMsg = getServerReactionRoleMessage(serverId, messageId);
 		if (!reactionRoleMsg) {
 			return { success: false, error: "Message is not a reaction role message." };
 		}
@@ -512,7 +535,7 @@ export const deleteReactionRoleSetupTool = async ({
 	messageId: string;
 }) => {
 	try {
-		const reactionRoleMsg = getReactionRoleMessage({ messageId });
+		const reactionRoleMsg = getServerReactionRoleMessage(serverId, messageId);
 		if (!reactionRoleMsg) {
 			return { success: false, error: "Message is not a reaction role message." };
 		}

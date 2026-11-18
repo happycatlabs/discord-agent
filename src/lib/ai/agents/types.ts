@@ -31,8 +31,10 @@ export interface DelegationContext {
 	userMentionString: string;
 	/** The user's display name */
 	username: string;
-	/** Whether this user may manage elevated server/global agent features */
+	/** Administrator or the server whitelist: full access to server tools */
 	isAdmin?: boolean;
+	/** The member's server-level Discord permissions; unlocks matching tools (see tool-access.ts) */
+	permissions?: bigint;
 	/** The original message from the user */
 	originalMessage: string;
 	/** Recent conversation history for context */
@@ -75,7 +77,7 @@ export interface SubAgentResult {
 export enum SubAgentError {
 	/** The bot lacks a Discord permission. */
 	PERMISSION_DENIED = "PERMISSION_DENIED",
-	/** The requesting user isn't an admin or whitelisted. */
+	/** The requesting user lacks the Discord permission, admin or whitelist the tool needs. */
 	USER_NOT_AUTHORIZED = "USER_NOT_AUTHORIZED",
 	/** A server-only tool was requested from a DM. */
 	SERVER_ONLY = "SERVER_ONLY",

@@ -730,6 +730,7 @@ ${currentMessageReactionSummary}
 								username: author.username,
 								mentionString: `<@${author.id}>`,
 								isAdmin: hasChatPerms,
+								permissions: message.member?.permissions.bitfield,
 							},
 							serverId: server.id as string,
 							channelId: channel.id,

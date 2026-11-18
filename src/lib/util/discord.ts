@@ -58,8 +58,7 @@ export const getUsersInVoiceChannels = async ({ serverId }: { serverId: string }
 	);
 
 	const usersInVoiceChannels = voiceChannels.map((channel) => {
-		// @ts-ignore
-		const users = channel?.members?.map((member) => ({
+		const users = (channel.isVoiceBased() ? [...channel.members.values()] : []).map((member) => ({
 			id: member.id,
 			username: member.user.username,
 			mentionString: `<@${member.id}>`,
@@ -84,7 +83,6 @@ export const dmUser = async ({ userId, message }: { userId: string; message: str
 		}
 		return { success: false, error: "User not found" };
 	} catch (error) {
-		// @ts-ignore
-		return { success: false, error };
+		return { success: false, error: String(error) };
 	}
 };

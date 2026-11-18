@@ -29,14 +29,28 @@ bun run dc               # register global commands for the production bot
 bun run clear-commands   # bun clear-commands <prod|dev>
 ```
 
-Checks to run before calling work done:
+Deploying runs on the server, from the repo root:
 
 ```sh
-bun run format:check
-bun run typecheck
-bun run lint
+scripts/deploy.sh --dry-run            # what would change, and whether commands need registering
+scripts/deploy.sh                      # deploy origin/master
+scripts/deploy.sh --ref <sha>          # deploy (or roll back to) a specific commit
+scripts/deploy.sh --register-commands  # also run bun dc after a healthy deploy
+```
+
+It stops the PM2 app, checks out the commit, clean-installs, checks every dependency loads, starts the app and waits until it stays up (`DEPLOY_HEALTH_SECONDS`, default 30). If any step fails it redeploys the previous commit. The last stdout line is `result=… from=… to=…` with `reason=` and `next=`. Exit codes: `0` deployed/unchanged/dry run, `1` failed and rolled back, `2` rollback also failed (the bot may be down), `3` refused before changing anything. Never layer installs or edit `node_modules` by hand on the server.
+
+Checks to run before calling work done (CI runs the same ones on every PR):
+
+```sh
+bun run check            # all of the below
+bun run format:check     # bun fmt --check (.oxfmtrc.json)
+bun run typecheck        # bun check against jsconfig.json
+bun run lint             # oxlint --type-aware + project rules in lint/plugin.mjs
 bun test
 ```
+
+Project lint rules live in `lint/plugin.mjs`, with fixture tests in `lint/__tests__/`. Add one when a mistake is likely to repeat and a rule can catch it. See `CONTRIBUTING.md`.
 
 For a narrow change, run the focused tests first, then the full set.
 
@@ -111,6 +125,9 @@ To add an AI-callable capability:
 
 AI SDK gotchas:
 
+- The app uses AI SDK 7. Check the installed types in `node_modules/ai/dist/index.d.ts` before trusting examples written for older versions.
+- System prompts go in `instructions`. AI SDK 7 rejects `{ role: "system" }` inside `messages` at runtime, and the type checker doesn't catch it.
+- For structured output, use `generateText({ output: Output.object({ schema }) })` and read `result.output`. `generateObject` is deprecated.
 - `tool()` takes `inputSchema`, not `parameters`.
 - `createToolsFromFunctions()` converts only simple string, number and string-enum parameters cleanly.
 - `executeSubAgent()` uses `stopWhen: stepCountIs(config.maxToolCalls)` so tool use continues past the first call.

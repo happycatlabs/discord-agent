@@ -51,9 +51,9 @@ function captureWithSentry(
 function wrapEventHandler(
 	eventName: string,
 	execute: GenericEventExecute,
-): (...args: unknown[]) => Promise<void> {
+): (...args: unknown[]) => void {
 	// Use a standard function (not arrow) so Discord.js binds the emitter as `this`
-	return async function (this: unknown, ...args: unknown[]) {
+	const handle = async function (this: unknown, ...args: unknown[]) {
 		try {
 			await Promise.resolve(execute.apply(this, args));
 		} catch (error) {
@@ -85,6 +85,10 @@ function wrapEventHandler(
 				extra: extraContext,
 			});
 		}
+	};
+	// Errors are caught and reported inside handle, so the promise can be dropped.
+	return function (this: unknown, ...args: unknown[]) {
+		void handle.apply(this, args);
 	};
 }
 
@@ -231,13 +235,13 @@ export const DISCORD_CLIENT = new Client({
 	},
 });
 
-// @ts-expect-error
+// @ts-expect-error: commands is attached to the discord.js Client at runtime
 DISCORD_CLIENT.commands = new Collection();
 
 // Initialize commands
 for (const command of commands) {
 	if ("data" in command && "execute" in command) {
-		// @ts-expect-error
+		// @ts-expect-error: commands is attached to the discord.js Client at runtime
 		DISCORD_CLIENT.commands.set(command.data.name, command);
 	} else {
 		console.log(`[WARNING] The command is missing a required "data" or "execute" property.`);

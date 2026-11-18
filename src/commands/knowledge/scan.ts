@@ -1,6 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import * as Sentry from "@sentry/node";
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import {
 	EmbedBuilder,
 	InteractionContextType,
@@ -144,13 +144,10 @@ const extractCandidates = async ({
 	serverName: string;
 	channelName: string;
 }) => {
-	const result = await generateObject({
+	const result = await generateText({
 		model: anthropic("claude-haiku-4-5-20251001"),
-		schema: candidateSchema,
-		messages: [
-			{
-				role: "system",
-				content: `You extract durable knowledge candidates from recent Discord channel messages.
+		output: Output.object({ schema: candidateSchema }),
+		instructions: `You extract durable knowledge candidates from recent Discord channel messages.
 
 Only return items that would improve future bot answers in this server or as global knowledge.
 
@@ -166,7 +163,7 @@ Reject:
 - Anything the messages do not clearly support.
 
 Keep each text field concise. Do not quote long message text.`,
-			},
+		messages: [
 			{
 				role: "user",
 				content: `Server: ${serverName}
@@ -180,7 +177,7 @@ Return at most ${MAX_CANDIDATES} knowledge candidates. Return an empty list if n
 		],
 	});
 
-	return result.object.candidates.filter((candidate) => candidate.confidence >= 0.62);
+	return result.output.candidates.filter((candidate) => candidate.confidence >= 0.62);
 };
 
 const isAuthorized = async (interaction: ChatInputCommandInteraction) => {

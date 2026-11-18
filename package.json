@@ -9,50 +9,43 @@
 		"test": "bun test",
 		"dc": "bun scripts/deploy-commands.ts",
 		"dc-dev": "NODE_ENV=development bun scripts/deploy-commands-dev.ts",
-		"format": "oxfmt",
-		"format:check": "oxfmt --check",
-		"lint": "oxlint --type-aware --type-check",
-		"lint:fix": "oxlint --fix --type-aware --type-check",
-		"typecheck": "tsgo --noEmit --project jsconfig.json",
-		"check": "oxfmt --check && oxlint --type-aware --type-check",
+		"format": "bun fmt",
+		"format:check": "bun fmt --check",
+		"lint": "oxlint --type-aware",
+		"lint:fix": "oxlint --fix --type-aware",
+		"typecheck": "bun check --no-script -p jsconfig.json",
+		"check": "bun run format:check && bun run typecheck && bun run lint && bun test",
 		"prepare": "husky",
 		"clear-commands": "bun scripts/clear-commands.ts",
 		"export:public": "rm -rf ../discord-agent-public && mkdir ../discord-agent-public && git archive HEAD | tar -x -C ../discord-agent-public && echo \"Public copy written to ../discord-agent-public (from the last commit)\""
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^2.0.45",
-		"@ai-sdk/openai": "^2.0.71",
-		"@discordjs/voice": "^0.19.2",
-		"@sentry/node": "^9.31.0",
-		"ai": "^5.0.98",
-		"bufferutil": "^4.0.9",
-		"chalk": "^5.4.1",
-		"commandkit": "^0.1.10",
-		"dayjs": "^1.11.13",
-		"discord-api-types": "^0.38.47",
-		"discord.js": "^14.26.4",
-		"dotenv": "^16.4.7",
-		"langchain": "^0.0.195",
+		"@ai-sdk/anthropic": "^4.0.106",
+		"@ai-sdk/openai": "^4.0.121",
+		"@sentry/node": "^9.47.2",
+		"ai": "^7.0.176",
+		"bufferutil": "^4.2.0",
+		"chalk": "^5.6.2",
+		"dayjs": "^1.11.23",
+		"discord-api-types": "^0.38.59",
+		"discord.js": "^14.28.1",
+		"dotenv": "^16.6.1",
 		"lodash.capitalize": "^4.2.1",
-		"openai": "^5.1.1",
 		"sqlite-vec": "^0.1.9",
-		"utf-8-validate": "^6.0.5",
-		"zod": "^4.1.12"
+		"utf-8-validate": "^6.0.6",
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
-		"@typescript/native-preview": "^7.0.0-dev.20260514.1",
-		"bun-types": "latest",
+		"bun-types": "^1.4.4",
 		"husky": "^9.1.7",
 		"lint-staged": "^14.0.1",
-		"oxfmt": "^0.49.0",
-		"oxlint": "^1.64.0",
-		"oxlint-tsgolint": "^0.22.1"
+		"oxlint": "^1.94.0",
+		"oxlint-tsgolint": "^7.0.2007"
 	},
 	"peerDependencies": {
 		"typescript": "^5.7.3"
 	},
 	"lint-staged": {
-		"*.{js,jsx,ts,tsx,json,jsonc,md,yml,yaml}": "oxfmt --no-error-on-unmatched-pattern",
-		"*.{js,jsx,ts,tsx}": "oxlint --fix --type-aware --type-check"
+		"*.{js,jsx,ts,tsx}": "oxlint --fix --type-aware"
 	}
 }

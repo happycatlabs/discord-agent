@@ -752,7 +752,7 @@ export const searchWebAcquisition = async ({
 		searchJinaProvider(query, resultCount),
 	];
 	logger.info("web search started", {
-		query,
+		queryLength: query.length,
 		resultCount,
 		recent,
 		searchProviderBudgetMs: SEARCH_PROVIDER_BUDGET_MS,
@@ -831,7 +831,7 @@ export const searchWebAcquisition = async ({
 	};
 	const outputChars = JSON.stringify(output).length;
 	logger.info("web search completed", {
-		query,
+		queryLength: query.length,
 		resultCount,
 		durationMs: Date.now() - startedAt,
 		providersCompleted: providerResults.map((result) => result.provider),

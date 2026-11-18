@@ -705,7 +705,6 @@ ${currentMessageReactionSummary}
 				let userMessageContent = message.content;
 				if (isDirectBotMention(userMessageContent)) {
 					userMessageContent = stripLeadingBotMention(userMessageContent);
-					console.log(`✂️  Stripped bot mention from message: "${userMessageContent}"`);
 				}
 				const userPromptContent =
 					userMessageContent.trim() ||

@@ -434,10 +434,8 @@ ${message}`;
 		// Call the LLM with delegation tools
 		const response = await generateText({
 			model: anthropic("claude-haiku-4-5-20251001"),
-			messages: [
-				{ role: "system", content: fullSystemPrompt },
-				{ role: "user", content: message },
-			],
+			instructions: fullSystemPrompt,
+			messages: [{ role: "user", content: message }],
 			tools: createDelegationTools(context),
 			toolChoice: "auto", // Let model decide: respond directly or delegate
 			stopWhen: stepCountIs(5), // Router rarely needs more than 1-2 delegation calls

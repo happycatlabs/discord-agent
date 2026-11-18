@@ -6,8 +6,9 @@ module.exports = {
 			args: "run start",
 			interpreter: "none",
 			autorestart: true,
-			watch: ["src"],
-			ignore_watch: ["node_modules"],
+			// No file watching: a checkout would restart the bot before dependencies are installed.
+			// Deploy with scripts/deploy.sh instead.
+			watch: false,
 			max_memory_restart: "300M",
 			min_uptime: "2m",
 			restart_delay: 5000,

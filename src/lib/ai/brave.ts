@@ -100,7 +100,7 @@ export async function searchBraveNews({
 	textDecorations,
 	safeSearch,
 }: BraveNewsSearchParams): Promise<Partial<BraveNewsSearchResult>[] | SearchProviderError> {
-	console.log(`🔍 Searching Brave News for: "${q}"`);
+	console.log(`🔍 Searching Brave News (${q.length} chars)`);
 	try {
 		const url = new URL(BRAVE_NEWS_SEARCH_ENDPOINT);
 		const params = {
@@ -121,7 +121,6 @@ export async function searchBraveNews({
 			}
 		}
 
-		console.log(`🌐 Fetching from URL: ${url.toString()}`);
 		const response = await fetchWithTimeout(url.toString(), {
 			method: "GET",
 			headers: {
@@ -191,7 +190,7 @@ export async function searchWeb({
 	safesearch = "moderate",
 	freshness,
 }: BraveWebSearchParams): Promise<BraveWebSearchResult[] | SearchProviderError> {
-	console.log(`🔍 Searching Brave Web for: "${q}"`);
+	console.log(`🔍 Searching Brave Web (${q.length} chars)`);
 	try {
 		const url = new URL(BRAVE_WEB_SEARCH_ENDPOINT);
 		const params = {
@@ -212,7 +211,6 @@ export async function searchWeb({
 			}
 		}
 
-		console.log(`🌐 Fetching from URL: ${url.toString()}`);
 		const response = await fetchWithTimeout(url.toString(), {
 			method: "GET",
 			headers: {
@@ -286,7 +284,7 @@ export async function searchImages({
 	safesearch = "off",
 	freshness,
 }: BraveWebSearchParams): Promise<BraveImageSearchResult[] | SearchProviderError> {
-	console.log(`🖼️ Searching Brave Images for: "${q}"`);
+	console.log(`🖼️ Searching Brave Images (${q.length} chars)`);
 
 	try {
 		const url = new URL(BRAVE_IMAGE_SEARCH_ENDPOINT);
@@ -306,7 +304,6 @@ export async function searchImages({
 			}
 		}
 
-		console.log(`🌐 Fetching images from URL: ${url.toString()}`);
 		const response = await fetchWithTimeout(url.toString(), {
 			method: "GET",
 			headers: {

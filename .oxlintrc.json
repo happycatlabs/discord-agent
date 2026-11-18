@@ -4,13 +4,27 @@
 	"categories": {
 		"correctness": "error"
 	},
-	"ignorePatterns": [".agents/**", ".claude/**", "data/**", "docs/**", "node_modules/**"],
+	"ignorePatterns": [
+		".agents/**",
+		".claude/**",
+		"data/**",
+		"docs/**",
+		"lint/fixtures/**",
+		"node_modules/**"
+	],
 	"options": {
-		"typeAware": true,
-		"typeCheck": true
+		"typeAware": true
 	},
-	"rules": {},
+	"rules": {
+		"typescript/no-floating-promises": "error",
+		"typescript/no-misused-promises": "error",
+		"typescript/await-thenable": "error",
+		"typescript/ban-ts-comment": "error",
+		"local/no-user-content-in-logs": "error",
+		"local/nullable-ai-schema-fields": "error"
+	},
 	"env": {
 		"builtin": true
-	}
+	},
+	"jsPlugins": ["./lint/plugin.mjs"]
 }

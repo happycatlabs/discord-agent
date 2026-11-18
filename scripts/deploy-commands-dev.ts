@@ -38,7 +38,8 @@ void (async () => {
 			} and ${globalCommands.length} global DM commands.`,
 		);
 	} catch (error) {
-		// And of course, make sure you catch and log any errors!
 		console.error(error);
+		// Fail loudly so scripts/deploy.sh and CI see that registration didn't happen.
+		process.exitCode = 1;
 	}
 })();

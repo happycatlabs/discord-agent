@@ -27,17 +27,19 @@ async function setBotStatus(client: Client) {
 }
 
 function startStatusMonitor(client: Client) {
-	setInterval(async () => {
-		try {
-			const currentActivity = client.user?.presence?.activities?.[0];
-			if (!currentActivity || currentActivity.name !== "Monitoring") {
-				console.log(chalk.yellow("[Status Monitor] Status missing or changed, restoring..."));
-				await setBotStatus(client);
-			}
-		} catch (error) {
-			reportEventError("statusMonitor", error, {}, "warning");
+	setInterval(() => void restoreStatusIfChanged(client), STATUS_CHECK_INTERVAL);
+}
+
+async function restoreStatusIfChanged(client: Client) {
+	try {
+		const currentActivity = client.user?.presence?.activities?.[0];
+		if (!currentActivity || currentActivity.name !== "Monitoring") {
+			console.log(chalk.yellow("[Status Monitor] Status missing or changed, restoring..."));
+			await setBotStatus(client);
 		}
-	}, STATUS_CHECK_INTERVAL);
+	} catch (error) {
+		reportEventError("statusMonitor", error, {}, "warning");
+	}
 }
 
 function logReadyMessage(client: Client) {

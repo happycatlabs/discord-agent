@@ -287,10 +287,8 @@ export const executeSubAgent = async (
 		// to call additional tools needed to complete the task
 		const response = await generateText({
 			model: anthropic("claude-haiku-4-5-20251001"),
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: task },
-			],
+			instructions: systemPrompt,
+			messages: [{ role: "user", content: task }],
 			tools,
 			toolChoice: "auto", // Let model decide when to use tools
 			stopWhen: stepCountIs(config.maxToolCalls), // Enable multi-step, limit iterations

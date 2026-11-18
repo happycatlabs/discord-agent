@@ -42,73 +42,77 @@ export const deployCommands = {
 			// Deploy dev by default
 			const command = environment === "prod" ? "bun dc" : "bun dc-dev";
 
-			exec(command, async (error, stdout, stderr) => {
-				try {
-					if (error) {
-						console.error(`Exec error: ${error.message}`);
-						let replyMessage = `Failed to deploy commands. Error: ${error.message}`;
-						if (stderr) {
-							console.error(`Stderr: ${stderr}`);
-							if (stderr.length < 500) {
-								// Keep reply manageable
-								replyMessage += `\nDetails: ${stderr}`;
+			exec(
+				command,
+				(error, stdout, stderr) =>
+					void (async () => {
+						try {
+							if (error) {
+								console.error(`Exec error: ${error.message}`);
+								let replyMessage = `Failed to deploy commands. Error: ${error.message}`;
+								if (stderr) {
+									console.error(`Stderr: ${stderr}`);
+									if (stderr.length < 500) {
+										// Keep reply manageable
+										replyMessage += `\nDetails: ${stderr}`;
+									}
+								}
+								// Ensure interaction is not already replied to (e.g. by confirmation)
+								if (!interaction.replied && !interaction.deferred) {
+									await interaction.reply({
+										content: replyMessage,
+										flags: [MessageFlags.Ephemeral],
+									});
+								} else {
+									await interaction.followUp({
+										content: replyMessage,
+										flags: [MessageFlags.Ephemeral],
+									});
+								}
+								return;
 							}
-						}
-						// Ensure interaction is not already replied to (e.g. by confirmation)
-						if (!interaction.replied && !interaction.deferred) {
-							await interaction.reply({
-								content: replyMessage,
-								flags: [MessageFlags.Ephemeral],
-							});
-						} else {
-							await interaction.followUp({
-								content: replyMessage,
-								flags: [MessageFlags.Ephemeral],
-							});
-						}
-						return;
-					}
 
-					let outputMessage = stdout || "Commands deployed successfully (no output).";
-					if (stderr) {
-						// Log stderr even if no exec error, as it might contain warnings
-						console.warn(`Stderr (non-error): ${stderr}`);
-						if (outputMessage.length + stderr.length < 1900) {
-							outputMessage += `\nWarnings: ${stderr}`;
-						}
-					}
+							let outputMessage = stdout || "Commands deployed successfully (no output).";
+							if (stderr) {
+								// Log stderr even if no exec error, as it might contain warnings
+								console.warn(`Stderr (non-error): ${stderr}`);
+								if (outputMessage.length + stderr.length < 1900) {
+									outputMessage += `\nWarnings: ${stderr}`;
+								}
+							}
 
-					if (outputMessage.length > 2000) {
-						console.log("Deployment output (too long for Discord reply):\n", outputMessage);
-						if (!interaction.replied && !interaction.deferred) {
-							await interaction.reply({
-								content: "Deployment output was too long. Please check the bot's console.",
-								flags: [MessageFlags.Ephemeral],
-							});
-						} else {
-							await interaction.followUp({
-								content: "Deployment output was too long. Please check the bot's console.",
-								flags: [MessageFlags.Ephemeral],
-							});
+							if (outputMessage.length > 2000) {
+								console.log("Deployment output (too long for Discord reply):\n", outputMessage);
+								if (!interaction.replied && !interaction.deferred) {
+									await interaction.reply({
+										content: "Deployment output was too long. Please check the bot's console.",
+										flags: [MessageFlags.Ephemeral],
+									});
+								} else {
+									await interaction.followUp({
+										content: "Deployment output was too long. Please check the bot's console.",
+										flags: [MessageFlags.Ephemeral],
+									});
+								}
+							} else {
+								if (!interaction.replied && !interaction.deferred) {
+									await interaction.reply({
+										content: outputMessage,
+										flags: [MessageFlags.Ephemeral],
+									});
+								} else {
+									await interaction.followUp({
+										content: outputMessage,
+										flags: [MessageFlags.Ephemeral],
+									});
+								}
+							}
+						} catch (replyError) {
+							Sentry.captureException(replyError);
+							console.error(`Failed to send deployment status reply: ${String(replyError)}`);
 						}
-					} else {
-						if (!interaction.replied && !interaction.deferred) {
-							await interaction.reply({
-								content: outputMessage,
-								flags: [MessageFlags.Ephemeral],
-							});
-						} else {
-							await interaction.followUp({
-								content: outputMessage,
-								flags: [MessageFlags.Ephemeral],
-							});
-						}
-					}
-				} catch (replyError) {
-					Sentry.captureException(replyError);
-					console.error(`Failed to send deployment status reply: ${String(replyError)}`);
-				}
-			});
+					})(),
+			);
 		} catch (error) {
 			Sentry.captureException(error);
 			throw error;

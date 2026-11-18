@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 import { openai } from "@ai-sdk/openai";
-import { generateObject, generateText } from "ai";
+import { generateText, type ModelMessage, Output, type SystemModelMessage } from "ai";
 import chalk from "chalk";
 import { z } from "zod";
 import { type DelegationContext, routeMessage } from "../ai/agents";
@@ -35,7 +35,7 @@ export const chat = async ({
 	userId,
 }: {
 	prompt?: string;
-	messages?: any[];
+	messages?: ModelMessage[];
 	model?: string;
 	system?: string;
 	json?: boolean;
@@ -45,39 +45,33 @@ export const chat = async ({
 		if (!prompt && !messages)
 			throw new Error("You must provide either a prompt or messages to chat()");
 
-		const chatMessages = messages || [
-			...(system ? [{ role: "system", content: system }] : []),
-			{ role: "user", content: prompt },
+		// AI SDK 7 rejects system messages inside `messages`; they go in `instructions`.
+		const allMessages: ModelMessage[] = messages || [
+			...(system ? [{ role: "system" as const, content: system }] : []),
+			{ role: "user" as const, content: prompt ?? "" },
 		];
+		const instructions = allMessages.filter((m): m is SystemModelMessage => m.role === "system");
+		const chatMessages = allMessages.filter((m) => m.role !== "system");
+		const providerOptions = userId ? { openai: { user: userId } } : undefined;
 
 		if (json) {
-			const result = await generateObject({
+			const result = await generateText({
 				model: openai(model),
+				instructions,
 				messages: chatMessages,
-				output: "no-schema",
-				...(userId && {
-					providerOptions: {
-						openai: {
-							user: userId,
-						},
-					},
-				}),
+				output: Output.json(),
+				providerOptions,
 			});
 
 			return {
-				response: JSON.stringify(result.object),
+				response: JSON.stringify(result.output),
 			};
 		}
 		const result = await generateText({
 			model: openai(model),
+			instructions,
 			messages: chatMessages,
-			...(userId && {
-				providerOptions: {
-					openai: {
-						user: userId,
-					},
-				},
-			}),
+			providerOptions,
 		});
 
 		return {
@@ -177,8 +171,7 @@ ${storedSourceContext}`
 
 		return response;
 	} catch (error) {
-		// @ts-ignore
-		if (error.message?.startsWith("429 You exceeded your current quota")) {
+		if (error instanceof Error && error.message.startsWith("429 You exceeded your current quota")) {
 			return "I can't chat right now, please try again later.";
 		}
 		console.error("❌ Error in chatFromDiscord:", error);
@@ -268,16 +261,14 @@ export const checkIfShouldReply = async ({
 		.join("\n\n");
 
 	try {
-		const response = await generateObject({
+		const response = await generateText({
 			model: openai("gpt-4o-2024-08-06"),
-			schema: replyDecisionSchema,
-			messages: [
-				{ role: "system", content: REPLY_DECISION_SYSTEM_PROMPT },
-				{ role: "user", content: channelData },
-			],
+			instructions: REPLY_DECISION_SYSTEM_PROMPT,
+			messages: [{ role: "user", content: channelData }],
+			output: Output.object({ schema: replyDecisionSchema }),
 		});
 
-		const decision = toReplyDecision(response.object);
+		const decision = toReplyDecision(response.output);
 		console.log(`🤖 Reply decision: ${JSON.stringify(decision)}`);
 		return decision;
 	} catch (error) {

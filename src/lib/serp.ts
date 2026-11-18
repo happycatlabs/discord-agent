@@ -50,7 +50,7 @@ export async function searchImagesSerp({
 	num = 100,
 	safe = "off",
 }: SerpImageSearchParams): Promise<SerpImageSearchResult[]> {
-	console.log(`🖼️ Searching SERP API for images: "${q}"`);
+	console.log(`🖼️ Searching SERP API for images (${q.length} chars)`);
 
 	try {
 		const url = new URL("https://serpapi.com/search");

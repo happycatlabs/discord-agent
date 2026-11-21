@@ -3,19 +3,12 @@
  * The fake pm2 "starts" the app by running entry.ts; if that exits non-zero the app is errored.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
-	chmodSync,
-	copyFileSync,
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const DEPLOY_SCRIPT = join(import.meta.dir, "../deploy.sh");
+const COMMAND_STATE = join(import.meta.dir, "../command-state.ts");
 let root = "";
 let work = ""; // the "server" checkout the script deploys
 let dev = ""; // where new commits are made and pushed
@@ -105,6 +98,7 @@ beforeAll(() => {
 	sh(["git", "clone", "-q", join(root, "origin.git"), work], root);
 	mkdirSync(join(work, "scripts"), { recursive: true });
 	copyFileSync(DEPLOY_SCRIPT, join(work, "scripts/deploy.sh"));
+	copyFileSync(COMMAND_STATE, join(work, "scripts/command-state.ts"));
 	write(".gitignore", "node_modules/\ndata/\n");
 	write("ecosystem.config.js", 'module.exports = { apps: [{ name: "Test App" }] };\n');
 	write(
@@ -114,10 +108,22 @@ beforeAll(() => {
 	write("local-dep/package.json", JSON.stringify({ name: "local-dep", main: "index.js" }));
 	write("local-dep/index.js", "module.exports = 1;\n");
 	write("entry.ts", "process.exit(0);\n");
+	// Same contract as the real scripts/deploy-commands.ts, with commands.json as the definitions.
 	write(
 		"scripts/deploy-commands.ts",
-		'if (process.env.FAIL_REGISTER) process.exit(1);\nawait Bun.write("data/commands-registered", "yes");\n',
+		`import { commandsHash, needsRegistration, writeState } from "./command-state";
+const commands = JSON.parse(await Bun.file("commands.json").text());
+const hash = commandsHash("app", commands);
+if (process.argv.includes("--if-changed") && !needsRegistration(hash)) {
+	console.log("commands=unchanged");
+	process.exit(0);
+}
+if (process.env.FAIL_REGISTER) process.exit(1);
+writeState(hash);
+console.log("commands=registered");
+`,
 	);
+	write("commands.json", JSON.stringify([{ name: "ping" }]));
 	sh(["bun", "install"]);
 	git("checkout", "-q", "-b", "master");
 	git("add", "-A");
@@ -149,14 +155,29 @@ describe("scripts/deploy.sh", () => {
 		const target = gitIn(dev, "rev-parse", "HEAD");
 		const result = deploy();
 		expect(result.code).toBe(0);
-		expect(result.fields).toMatchObject({ result: "deployed", to: short(target), next: "none" });
+		expect(result.fields).toMatchObject({
+			result: "deployed",
+			to: short(target),
+			commands: "registered", // first deploy: nothing registered yet
+			next: "none",
+		});
 		expect(head()).toBe(target);
 	});
 
 	test("an already-deployed commit is unchanged", () => {
 		const result = deploy();
 		expect(result.code).toBe(0);
-		expect(result.fields.result).toBe("unchanged");
+		expect(result.fields).toMatchObject({ result: "unchanged", commands: "unchanged" });
+	});
+
+	test("--force redeploys the running commit", () => {
+		const result = deploy("--force");
+		expect(result.code).toBe(0);
+		expect(result.fields).toMatchObject({
+			result: "deployed",
+			from: short(head()),
+			to: short(head()),
+		});
 	});
 
 	test("a version that crashes on start is rolled back", () => {
@@ -219,24 +240,26 @@ describe("scripts/deploy.sh", () => {
 		expect(result.fields.reason).toBe("unknown_ref");
 	});
 
-	test("says when slash commands changed, and registers them only when asked", () => {
-		commit("change commands", { "src/commands/ping.ts": "export const ping = 1;\n" });
-		const plain = deploy();
-		expect(plain.fields).toMatchObject({ result: "deployed", commands_changed: "true" });
-		expect(plain.fields.next).toContain("--register-commands");
-		expect(existsSync(join(work, "data/commands-registered"))).toBe(false);
+	test("registers slash commands only when their definitions change", () => {
+		commit("code change only", { "src/commands/ping.ts": "export const ping = 2;\n" });
+		expect(deploy().fields).toMatchObject({ result: "deployed", commands: "unchanged" });
 
-		env.FAIL_REGISTER = "1";
-		const failed = deploy("--register-commands");
-		delete env.FAIL_REGISTER;
-		expect(failed.code).toBe(1);
-		expect(failed.fields).toMatchObject({
-			commands_registered: "false",
-			reason: "command_registration_failed",
+		commit("new command", {
+			"commands.json": JSON.stringify([{ name: "ping" }, { name: "pong" }]),
 		});
+		expect(deploy().fields).toMatchObject({ result: "deployed", commands: "registered" });
+	});
 
-		const registered = deploy("--register-commands");
-		expect(registered.fields).toMatchObject({ result: "unchanged", commands_registered: "true" });
-		expect(existsSync(join(work, "data/commands-registered"))).toBe(true);
+	test("a rejected registration exits 4, and the next run retries it", () => {
+		commit("another command", { "commands.json": JSON.stringify([{ name: "ping" }]) });
+		env.FAIL_REGISTER = "1";
+		const failed = deploy();
+		delete env.FAIL_REGISTER;
+		expect(failed.code).toBe(4);
+		expect(failed.fields).toMatchObject({ result: "deployed", commands: "failed" });
+
+		const retried = deploy();
+		expect(retried.code).toBe(0);
+		expect(retried.fields).toMatchObject({ result: "unchanged", commands: "registered" });
 	});
 });

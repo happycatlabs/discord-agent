@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 # Deploy a commit of this repo to the PM2 app running it, with a health check and automatic rollback.
 #
-#   scripts/deploy.sh [--ref <git-ref>] [--register-commands] [--dry-run]
+#   scripts/deploy.sh [--ref <git-ref>] [--force] [--dry-run]
 #
-# Run on the server from the repo root. Progress goes to stderr; the last line on stdout is
-#   result=<deployed|unchanged|dry_run|rolled_back|rollback_failed|refused> from=<sha> to=<sha> ...
+#   --force   redeploy even if the commit is already running (e.g. after editing .env)
+#
+# Run on the server from the repo root. After a healthy deploy it registers slash commands with
+# Discord if their definitions changed since the last registration.
+#
+# Progress goes to stderr; the last line on stdout is
+#   result=<deployed|unchanged|dry_run|rolled_back|rollback_failed|refused> from=<sha> to=<sha>
+#   commands=<registered|unchanged|failed> reason=<code> next=<what to do>
 #
 # Exit codes:
 #   0  deployed, unchanged or dry run
 #   1  the new version failed and the previous version is running again
 #   2  the new version failed and so did the rollback: the bot may be down
 #   3  refused before changing anything (dirty tree, unknown ref, deploy already running, ...)
+#   4  deployed and healthy, but Discord rejected the slash commands
 #
 # Environment:
 #   DEPLOY_APP              PM2 app name (default: the name in ecosystem.config.js)
@@ -21,7 +28,7 @@
 set -uo pipefail
 
 main() {
-	local ref="origin/master" register_commands=false dry_run=false
+	local ref="origin/master" dry_run=false force=false
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--ref)
@@ -29,9 +36,9 @@ main() {
 			ref="$2"
 			shift 2
 			;;
-		--register-commands) register_commands=true; shift ;;
 		--dry-run) dry_run=true; shift ;;
-		-h | --help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		--force) force=true; shift ;;
+		-h | --help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		*) refuse "unknown_argument" "unknown argument: $1" ;;
 		esac
 	done
@@ -63,36 +70,21 @@ main() {
 	to="$(git rev-parse --verify -q "${ref}^{commit}")" || refuse "unknown_ref" "no commit for ref \"$ref\""
 	TO_SHORT="$(git rev-parse --short "$to")"
 
-	local commands_changed=false
-	if git diff --quiet "$FROM" "$to" -- src/commands scripts/deploy-commands.ts; then :; else commands_changed=true; fi
-
 	if $dry_run; then
 		log "would deploy $FROM_SHORT -> $TO_SHORT:"
 		git log --oneline "$FROM..$to" >&2 || true
 		local next="scripts/deploy.sh"
 		[ "$to" = "$FROM" ] && next="none (already deployed)"
-		$commands_changed && next="scripts/deploy.sh --register-commands"
-		finish 0 "dry_run" "commands_changed=$commands_changed" "next=$next"
+		finish 0 "dry_run" "next=$next"
 	fi
 
-	if [ "$to" = "$FROM" ] && app_healthy_now; then
-		if $register_commands; then
-			register || finish 1 "unchanged" "commands_registered=false" \
-				"reason=command_registration_failed" "next=run bun dc and check the error"
-			finish 0 "unchanged" "commands_registered=true" "next=none"
-		fi
-		finish 0 "unchanged" "commands_changed=false" "next=none"
+	if [ "$to" = "$FROM" ] && ! $force && app_healthy_now; then
+		sync_commands_and_finish "unchanged"
 	fi
 
 	if deploy_commit "$to"; then
 		record "deployed"
-		if $register_commands; then
-			register || finish 1 "deployed" "commands_registered=false" \
-				"reason=command_registration_failed" "next=run bun dc and check the error"
-			finish 0 "deployed" "commands_registered=true" "next=none"
-		fi
-		finish 0 "deployed" "commands_changed=$commands_changed" \
-			"next=$( $commands_changed && echo 'run scripts/deploy.sh --register-commands' || echo 'none' )"
+		sync_commands_and_finish "deployed"
 	fi
 
 	local reason="$FAILURE"
@@ -172,9 +164,19 @@ app_status() {
 	'
 }
 
-register() {
-	log "registering slash commands"
-	bun scripts/deploy-commands.ts >&2
+# Register slash commands if their definitions changed, then print the result and exit.
+sync_commands_and_finish() {
+	local result="$1" output
+	log "syncing slash commands"
+	if output="$(bun scripts/deploy-commands.ts --if-changed 2>&1)"; then
+		printf '%s\n' "$output" | sed 's/^/deploy:   /' >&2
+		local commands
+		commands="$(printf '%s\n' "$output" | sed -n 's/^commands=//p' | tail -1)"
+		finish 0 "$result" "commands=${commands:-unchanged}" "next=none"
+	fi
+	printf '%s\n' "$output" | sed 's/^/deploy:   /' >&2
+	finish 4 "$result" "commands=failed" "reason=command_registration_failed" \
+		"next=fix the error above, then run scripts/deploy.sh again"
 }
 
 # Prints "true" if PM2 file watching is on for APP.

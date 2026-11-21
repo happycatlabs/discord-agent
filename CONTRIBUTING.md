@@ -6,8 +6,9 @@ Thanks for helping. This is a small project, so the rules are short.
 
 1. Install [Bun](https://bun.com). The version CI uses is in `.bun-version`.
 2. `bun install`
-3. Copy `.env.example` to `.env` and fill in what you need. For a test bot, set `DEV_TOKEN` and `DEV_GUILD_IDS`.
-4. `bun run dev`
+3. Copy `.env.example` to `.env`. For a test bot, fill in `DEV_TOKEN`, `DEV_CLIENT_ID` and `DEV_GUILD_IDS` (your test servers), plus the OpenAI and Anthropic keys.
+4. `bun dc-dev` to register the slash commands in your test servers.
+5. `bun run dev`
 
 `AGENTS.md` is the map of the codebase. Read the section for the area you're changing.
 
@@ -31,8 +32,6 @@ The pre-commit hook formats staged files and lints staged code.
   - `local/no-user-content-in-logs`: don't log message content, prompts or search queries. Log IDs, counts or lengths.
   - `local/nullable-ai-schema-fields`: in AI output schemas use `.nullable()`, not `.optional()`. OpenAI's strict mode sends `null` for unused fields.
 - **Tests:** `bun test`.
-
-Pull requests also get an automated code review.
 
 ## Rules that matter most
 

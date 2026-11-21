@@ -32,13 +32,14 @@ bun run clear-commands   # bun clear-commands <prod|dev>
 Deploying runs on the server, from the repo root:
 
 ```sh
-scripts/deploy.sh --dry-run            # what would change, and whether commands need registering
-scripts/deploy.sh                      # deploy origin/master
-scripts/deploy.sh --ref <sha>          # deploy (or roll back to) a specific commit
-scripts/deploy.sh --register-commands  # also run bun dc after a healthy deploy
+scripts/deploy.sh --dry-run     # show what would deploy
+scripts/deploy.sh               # deploy origin/master
+scripts/deploy.sh --ref <sha>   # deploy (or roll back to) a specific commit
 ```
 
-It stops the PM2 app, checks out the commit, clean-installs, checks every dependency loads, starts the app and waits until it stays up (`DEPLOY_HEALTH_SECONDS`, default 30). If any step fails it redeploys the previous commit. The last stdout line is `result=… from=… to=…` with `reason=` and `next=`. Exit codes: `0` deployed/unchanged/dry run, `1` failed and rolled back, `2` rollback also failed (the bot may be down), `3` refused before changing anything. Never layer installs or edit `node_modules` by hand on the server.
+It stops the PM2 app, checks out the commit, clean-installs, checks every dependency loads, starts the app and waits until it stays up (`DEPLOY_HEALTH_SECONDS`, default 30). If any step fails it redeploys the previous commit. After a healthy deploy it registers the slash commands, but only if their definitions changed since the last registration (`bun scripts/deploy-commands.ts --if-changed`, which compares a hash saved in `data/registered-commands.json`).
+
+The last stdout line is `result=… from=… to=… commands=…` with `reason=` and `next=` when something needs doing. Exit codes: `0` deployed, unchanged or dry run; `1` failed and rolled back; `2` rollback also failed (the bot may be down); `3` refused before changing anything; `4` deployed, but Discord rejected the slash commands (run the script again to retry). Never layer installs or edit `node_modules` by hand on the server.
 
 Checks to run before calling work done (CI runs the same ones on every PR):
 
@@ -79,7 +80,7 @@ For a narrow change, run the focused tests first, then the full set.
 
 - It ignores bot authors. DMs (`!message.guild`) go through `handleDirectMessage()`.
 - **DMs:** fetch up to 25 recent messages, include attachment URLs, show typing and a status embed, call `chatFromDiscord()`, send the response, then save the sources it used.
-- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Server-management tools need admin or the matching Discord permission. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which returns one decision: `reply` (with `quoteMessage`), `react` (with `emoji`) or `ignore`. Chat content goes in the user turn, never the system prompt, so messages can't rewrite the instructions.
+- **Servers:** load server data and work out whether the author is an admin (Administrator or the server whitelist in the database). Anyone can chat. Server-management tools need admin or the matching Discord permission. Direct @mentions and replies continuing a thread with the bot get an immediate answer. Everything else goes through `checkIfShouldReply()` in `src/lib/util/openai.ts`, which returns one decision: `reply` (with `quoteMessage`), `react` (with `emoji`) or `ignore`. Chat content goes in the user turn, never the system prompt, which makes it harder for a message to override the instructions.
 - The ambient check only runs while the bot has spoken in that channel within `AMBIENT_WINDOW_SECONDS` (20 minutes). Approved replies go out immediately.
 - The bot's own ID is `AGENT_USER_ID`, which defaults to `CLIENT_ID`. At startup it logs an error if they don't match.
 
@@ -120,7 +121,7 @@ To add an AI-callable capability:
 3. Export them from `src/lib/ai/functions/index.ts`.
 4. Add or update the sub-agent in `src/lib/ai/agents/sub-agents/<domain>.ts`.
 5. Update `router.ts`: the lazy executor, `DelegationFunction`, the delegation tool, and the routing rules in the prompt.
-6. Enforce permissions in the function code, not only in prompts.
+6. Decide who may call it. A tool with a `serverId` parameter is admin-only until you add it to `TOOL_PERMISSIONS` (with the Discord permission it needs) or `MEMBER_SERVER_TOOLS` in `src/lib/ai/tool-access.ts`. Never rely on the prompt for this.
 7. Add focused tests for pure helpers, plus a smoke path for the tool when practical.
 
 AI SDK gotchas:
@@ -145,7 +146,7 @@ AI SDK gotchas:
 
 Don't rely on prompts for permissions.
 
-- In servers, Administrator or the server whitelist sets `isAdmin` in `DelegationContext`. Ambient replies and DMs are always `isAdmin: false`.
+- In servers, Administrator or the server whitelist sets `isAdmin` in `DelegationContext`, and the member's server-level Discord permissions go in `permissions`. DMs always get `isAdmin: false` and no permissions.
 - `src/lib/ai/tool-access.ts` enforces this for every tool call in `sub-agents/base.ts`:
   - `serverId` and `createdBy` are hidden from the model and filled from context, so the model can't target another server or impersonate a user.
   - Any tool with a `serverId` parameter rejects DMs. In servers it runs for admins (Administrator or whitelist), for members holding the Discord permissions listed for it in `TOOL_PERMISSIONS` (e.g. `DELETE_CHANNEL` needs Manage Channels), or for anyone if it's in `MEMBER_SERVER_TOOLS`. A new server tool in neither list is admin-only.
@@ -188,4 +189,4 @@ The knowledge agent supports `SEARCH_KNOWLEDGE`, `SAVE_KNOWLEDGE`, `LIST_KNOWLED
 
 - Slash commands are grouped under `src/commands/`, and the registry is `src/commands/index.ts`.
 - Economy, casino and betting commands are behind feature flags.
-- After adding or renaming a command, re-register it with `bun dc-dev` (dev) or `bun dc` (production).
+- After adding or changing a command, run `bun dc-dev` to register it in your test servers. Production deploys register changed commands automatically; `bun dc` forces a registration.

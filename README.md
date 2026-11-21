@@ -1,65 +1,62 @@
 # discord-agent
 
-A Discord bot that takes part in conversations the way a person in the server would. @mention it or reply to it to start talking. After that it keeps following the channel and decides for itself whether to reply, react with an emoji, or stay quiet.
+A Discord bot that joins conversations like a regular member. @mention it or reply to one of its messages and it answers. For the next 20 minutes it keeps reading that channel and decides on its own whether to reply, react with an emoji, or stay quiet. It answers DMs too.
 
 ## What it does
 
-- **Decides when to speak.** For 20 minutes after it last spoke in a channel, every message goes through a quick AI check: reply or not, react or not, and whether to reply to that specific message or just post in the channel. Staying quiet is the default. It ignores side conversations, "lol" and "brb".
-- **Remembers the channel.** It stores messages in SQLite and uses recent history, plus its own last message, as context.
-- **Looks things up.** It can search the web and read pages through Brave, SerpAPI, Jina or Parallel, whichever have keys set.
-- **Optional extras**, each behind a feature flag: XP and levels, an economy with betting and casino games, and a vector knowledge base.
-- **Slash commands** for polls, avatars and banners, reaction roles, purging messages, and server setup.
+- **Picks its moments.** While it's following a channel, a quick AI check reads each new message and decides to reply, react or ignore it. Ignoring is the default, so it skips side conversations and messages like "lol" or "brb".
+- **Uses the conversation as context.** It saves messages in SQLite and reads the recent channel history, plus its own last message, before it answers.
+- **Looks things up.** It searches the web and reads pages with Brave, Jina and Parallel, using whichever ones have an API key set.
+- **Manages the server when allowed.** Ask it to create channels or threads, change channel permissions, or set up reaction roles. Server admins and whitelisted users can use all of these. Other members can use the ones their Discord permissions already cover, such as Manage Channels for creating channels.
+- **Optional features**, each behind a flag: XP and levels (on by default), an economy with betting and casino games, and a vector knowledge base.
+- **Slash commands** for avatars and banners, image search, reaction roles, purging messages, the knowledge base and server setup.
 
 ## Requirements
 
-- [Bun](https://bun.sh) 1.x
-- A Discord application with a bot user. Enable the **Message Content**, **Server Members** and **Presence** intents.
-- An OpenAI API key and an Anthropic API key.
+- [Bun](https://bun.com) 1.4.4 or newer. CI uses the version in `.bun-version`.
+- A Discord application with a bot user and these privileged intents turned on: **Message Content**, **Server Members** and **Presence**.
+- An OpenAI API key and an Anthropic API key. OpenAI decides when to reply; Anthropic writes the answers and runs the tools.
 
 ## Setup
 
 ```bash
 bun install
-cp .env.example .env   # then fill in the Required section
-```
-
-Register slash commands, then start the bot:
-
-```bash
-bun dc        # register global commands for the production bot
+cp .env.example .env   # fill in the Required section
+bun dc                 # register the slash commands
 bun start
 ```
 
 ### Development
 
-Use a second Discord application for development so you don't disturb the live bot:
+Use a second Discord application for development so testing doesn't touch the live bot. Set `DEV_TOKEN`, `DEV_CLIENT_ID` and `DEV_GUILD_IDS` (your test servers) in `.env`, then:
 
 ```bash
-# .env: DEV_TOKEN, DEV_CLIENT_ID, and DEV_GUILD_IDS for your test server(s)
-bun dc-dev    # register dev commands in DEV_GUILD_IDS
-bun dev       # run with file watching
+bun dc-dev   # register commands in your test servers
+bun dev      # run with file watching
 ```
 
-To remove registered commands: `bun clear-commands prod` or `bun clear-commands dev`.
+To remove registered commands, run `bun clear-commands prod` or `bun clear-commands dev`.
 
-### Checks
-
-```bash
-bun test
-bun run typecheck
-bun run check   # format + lint
-```
+Before opening a pull request, run `bun run check`. It runs the same formatting, type, lint and test checks as CI. [CONTRIBUTING.md](CONTRIBUTING.md) has the details.
 
 ## Running in production
 
-`ecosystem.config.js` runs the bot under [PM2](https://pm2.keymetrics.io):
+The bot runs under [PM2](https://pm2.keymetrics.io). Start it once:
 
 ```bash
 pm2 start ecosystem.config.js
 ```
 
-Data lives in `data/agent.sqlite` (change it with `AGENT_SQLITE_PATH`). Set `SENTRY_DSN` to send errors to Sentry.
+After that, deploy new code by running this on the server, from the repo root:
+
+```bash
+scripts/deploy.sh
+```
+
+The script checks out `origin/master`, reinstalls dependencies, restarts the bot and waits 30 seconds to make sure it stays up. If any step fails, it rolls back to the previous commit. It also re-registers the slash commands when their definitions have changed. `scripts/deploy.sh --help` lists the options.
+
+Data lives in `data/agent.sqlite`; set `AGENT_SQLITE_PATH` to move it. Set `SENTRY_DSN` to send errors to Sentry.
 
 ## Configuration
 
-All configuration comes from environment variables. `.env.example` lists every one with its default.
+All settings are environment variables. `.env.example` lists each one with its default.
